@@ -11,7 +11,7 @@ pub fn execute(
 ) -> Result<Response, StdError> {
 
     match msg {
-        PingPong => {
+        ExecuteMsg::PingPong() => {
             let other = OTHER.load(deps.storage)?;
             let ping_pong_msg = ExecuteMsg::PingPong {  };
             let exec = WasmMsg::Execute {
@@ -21,7 +21,7 @@ pub fn execute(
             };
             return Ok(Response::new().add_message(exec));
         },
-        SetOther(o) => {
+        ExecuteMsg::SetOther(o) => {
             OTHER.save(deps.storage, &o.other)?;
             return Ok(Response::new());
         }
@@ -40,4 +40,36 @@ pub fn instantiate(
     OTHER.save(deps.storage, &msg.other)?;
     return Ok(Response::new());
    
+}
+
+#[cfg(test)]
+mod test {
+    use cosmwasm_std::{testing::{mock_dependencies, mock_env, mock_info}, to_json_binary, CosmosMsg, Response, WasmMsg};
+    use crate::msg::InstantiateMsg;
+    use crate::msg::ExecuteMsg;
+
+    #[test]
+    fn ping_pong_works() {
+        let mut deps = mock_dependencies();
+        let instantiate_msg = InstantiateMsg { other: "other".to_string() };
+        let msg = ExecuteMsg::PingPong {  };
+        crate::contract::instantiate(deps.as_mut(), mock_env(), mock_info("creator", &[]), instantiate_msg).unwrap();
+        let response = crate::contract::execute(deps.as_mut(), mock_env(), mock_info("creator", &[]), msg).unwrap();
+        assert_eq!(response.messages.len(), 1);
+        let expected_msg = WasmMsg::Execute { contract_addr: String::from("other"), msg: to_json_binary(&ExecuteMsg::PingPong{}).unwrap(), funds: vec![] }.into();
+        assert_eq!(
+            response.messages[0].msg,
+            expected_msg
+        );
+    }
+
+    #[test]
+    fn set_other_works() {
+        let mut deps = mock_dependencies();
+        let instantiate_msg = InstantiateMsg { other: "other".to_string() };
+        let msg = ExecuteMsg::SetOther( InstantiateMsg { other: "other2".to_string() });
+        crate::contract::instantiate(deps.as_mut(), mock_env(), mock_info("creator", &[]), instantiate_msg).unwrap();
+        let response = crate::contract::execute(deps.as_mut(), mock_env(), mock_info("creator", &[]), msg).unwrap();
+        assert_eq!(response.messages.len(), 0);
+    }
 }
